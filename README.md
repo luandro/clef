@@ -229,7 +229,29 @@ curl -s -X POST "$CLEF_URL/v1/systemone" \
 
 ## Deployment
 
-<!-- TODO-DEPLOY: Senior will fill final deployment commands and production endpoints after live deploy. -->
+<!-- TODO-DEPLOY -->
+
+Deployed 2026-10-04 as a single Worker, `clef-proxy`, at
+`https://clef-proxy.mangadl.workers.dev` (both models, selected by the
+request's `model` field; no separate canary/production modes).
+
+```bash
+# Verify configuration without deploying
+npm run deploy:check            # cf deploy --dry-run
+
+# Deploy (uploads the Worker and the secrets in the file)
+cf deploy --secrets-file .clef-secrets.env
+
+# Live acceptance against the deployed Worker
+CLEF_URL=https://clef-proxy.mangadl.workers.dev \
+CLEF_TOKEN="$(grep '^CLEF_TOKEN=' .clef-secrets.env | cut -d= -f2)" \
+node tests/live.mjs
+```
+
+`.clef-secrets.env` (gitignored) holds the client token in `.env` format;
+`.env` also carries `CLEF_TOKEN`. Rotating the token: change it in `.env`,
+copy to `.clef-secrets.env`, redeploy with `--secrets-file` — the upload
+replaces the secret.
 
 ### Prerequisites
 Before running deployment:
@@ -245,32 +267,18 @@ Run all unit and mock tests with Vitest:
 npm test
 ```
 
-### Deploying Canary
-
-Deploy to the canary worker using `cf`:
+### Re-deploying and rotating the token
 
 ```bash
-# Verify configuration
-npm run deploy:check
-
-# Deploy canary with secret
-cf deploy --mode canary --secrets-file .clef-secrets.env
+# Change CLEF_TOKEN in .env, then:
+grep '^CLEF_TOKEN=' .env > .clef-secrets.env
+cf deploy --secrets-file .clef-secrets.env
+CLEF_URL=https://clef-proxy.mangadl.workers.dev \
+CLEF_TOKEN="$(grep '^CLEF_TOKEN=' .clef-secrets.env | cut -d= -f2)" \
+node tests/live.mjs
 ```
 
 ### Live Acceptance Verification
 
-Run the end-to-end acceptance suite against the live canary worker:
-
-```bash
-CLEF_URL=https://clef-proxy-canary.<account-subdomain>.workers.dev \
-CLEF_TOKEN="$(cat .clef-secrets.env | cut -d= -f2)" \
-node tests/live.mjs
-```
-
-### Deploying Production
-
-Once canary acceptance is green:
-
-```bash
-cf deploy --mode production --secrets-file .clef-secrets.env
-```
+The acceptance suite (`tests/live.mjs`) runs real inference on both models
+and is the post-deploy gate. It consumes `CLEF_URL` and `CLEF_TOKEN`.
