@@ -4,14 +4,18 @@ A lightweight, zero-runtime-dependency Cloudflare Worker proxy that serves as a 
 
 ## Drop-in Usage
 
-Existing Jev clients can switch to `clef-proxy` without code refactoring (error-byte parity and official-SDK interoperability are verified at acceptance; see Known caveats). Change only:
+Existing Jev clients can switch to `clef-proxy` with minimal changes (see [Differences from Jev](#differences-from-jev)). Change only:
 1. **Base URL**: Point to your deployed Worker (e.g. `https://clef-proxy.<subdomain>.workers.dev`).
 2. **API Key**: Pass your configured `CLEF_TOKEN` as `Authorization: Bearer <CLEF_TOKEN>`.
 
-### Known caveats
+## Differences from Jev
 
-> [!NOTE]
-> **Compatibility Qualification**: Error response bodies use the proxy's envelope with Jev-compatible HTTP statuses and standard 4-property structure (`type`, `code`, `message`, `param`), rather than an established Jev documented standard. Exact byte-parity with Jev error bodies and official-SDK interoperability are verified at live acceptance testing.
+Read this before migrating:
+
+1. **Score levels are capped at 10.** Upstream Clef supports at most 10 levels per `score` question, versus 64 on Jev. The proxy returns `422 invalid_field` for more than 10 levels.
+2. **Error bodies use the proxy's envelope.** Errors have the 4-property shape (`type`, `code`, `message`, `param`) with Jev-compatible HTTP statuses. Exact byte-for-byte parity with Jev error bodies is **unverified**; match on status codes, not on body text.
+3. **The response `model` field reports `clef` or `clef-flash`**, never `jev-x.y.z`, even when you requested a Jev alias such as `jev-latest`.
+4. **`/v1/models` `release_date` is the proxy's verification date (`2026-10-04`)**, not an official Cloudflare release date.
 
 ### Endpoints
 
@@ -252,10 +256,13 @@ copy to `.clef-secrets.env`, redeploy with `--secrets-file` — the upload
 replaces the secret.
 
 ### Prerequisites
-Before running deployment:
-1. **Migration (`cf migrate`)**: Run `cf migrate wrangler.jsonc --bundler wrangler` to generate and verify `cloudflare.config.ts` and `wrangler.config.ts`.
-2. **Mode-dependent worker names**: Configure distinct worker names in `cloudflare.config.ts` for canary (`clef-proxy-canary`) and production (`clef-proxy`).
-3. **Secret binding (`CLEF_TOKEN`)**: Ensure `CLEF_TOKEN` is provisioned as an encrypted secret binding in Cloudflare Workers environment (e.g. via `cf secret put CLEF_TOKEN` or `--secrets-file`).
+Before deploying you need:
+1. A **Cloudflare account** with **Workers AI** enabled.
+2. A **workers.dev subdomain** registered on the account.
+3. **Node 22+** and the **`cf` CLI** installed.
+4. A generated **`CLEF_TOKEN`** (client bearer token), stored in `.env` and supplied at deploy time via `--secrets-file` (see above).
+
+Note: `cf migrate` is only needed when starting from a `wrangler.jsonc`; it has already been done in this repo.
 
 ### Local Testing
 

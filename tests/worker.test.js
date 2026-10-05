@@ -443,7 +443,10 @@ describe("Worker - Upstream Invocation, Passthrough, and Path Pinning", () => {
     expect(calledModel).toBe("@cf/cloudflare/clef");
     expect(calledBody.model).toBe("clef");
     expect(calledBody.state).toBe(inputReq.state);
-    expect(calledBody.custom_field).toBe("forwarded-verbatim");
+    expect(calledBody.questions).toEqual(inputReq.questions);
+    // Top-level allowlist: unknown fields are NOT forwarded upstream
+    expect(calledBody).not.toHaveProperty("custom_field");
+    expect(Object.keys(calledBody).filter(k => !["state", "model", "questions", "images"].includes(k))).toEqual([]);
 
     // Original input should not be mutated
     expect(inputReq.model).toBe("jev-latest");

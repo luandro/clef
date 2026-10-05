@@ -73,7 +73,7 @@ describe("Upstream Error Translation - Status and Codes", () => {
     expect(body.error).toEqual({
       type: "overloaded_error",
       code: "overloaded",
-      message: "Workers AI service is overloaded",
+      message: "Model overloaded.",
       param: null
     });
   });
@@ -100,7 +100,7 @@ describe("Upstream Error Translation - Status and Codes", () => {
     expect(body3036.error).toEqual({
       type: "rate_limit_error",
       code: "rate_limit_exceeded",
-      message: "Hourly quota exceeded",
+      message: "Rate limited upstream.",
       param: null
     });
 

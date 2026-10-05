@@ -8,3 +8,4 @@ dist/
 graft/
 .clef-secrets.env
 .dev.vars
+.cloudflare/

@@ -165,46 +165,10 @@ export async function authenticate(request, env) {
 /**
  * Helper to ensure reader and underlying stream / body are properly cancelled on overflow.
  */
-async function cancelStream(request, reader) {
-  if (reader && typeof reader.cancel === "function") {
-    try {
-      await reader.cancel("request_too_large");
-    } catch {}
-  }
-
-  const seen = new Set();
-  async function searchAndCancel(obj, depth = 0) {
-    if (!obj || (typeof obj !== "object" && typeof obj !== "function") || depth > 4) return;
-    if (seen.has(obj)) return;
-    seen.add(obj);
-
-    if (typeof obj.cancel === "function" && obj !== reader) {
-      try {
-        await obj.cancel("request_too_large");
-      } catch {}
-    }
-
-    for (const sym of Object.getOwnPropertySymbols(obj)) {
-      try {
-        const val = obj[sym];
-        if (val) await searchAndCancel(val, depth + 1);
-      } catch {}
-    }
-
-    for (const key of Object.getOwnPropertyNames(obj)) {
-      try {
-        const val = obj[key];
-        if (val) await searchAndCancel(val, depth + 1);
-      } catch {}
-    }
-  }
-
-  if (request?.body) {
-    await searchAndCancel(request.body);
-  }
-  if (request) {
-    await searchAndCancel(request);
-  }
+async function cancelStream(reader) {
+  try {
+    await reader.cancel("request_too_large");
+  } catch {}
 }
 
 /**
@@ -238,7 +202,7 @@ export async function readBoundedJson(request) {
 
       total += value.byteLength;
       if (total > MAX_BODY_BYTES) {
-        await cancelStream(request, reader);
+        await cancelStream(reader);
         return {
           error: errorResponse(422, "invalid_request_error", "request_too_large", "body: exceeds 13 MiB", "body")
         };
@@ -889,7 +853,7 @@ export function translateUpstreamError(error, aiBinding) {
 
   // 1. Overload / Capacity exhaustion -> 529 overloaded_error
   if (isCapacityOverloaded(normalized)) {
-    return errorResponse(529, "overloaded_error", "overloaded", normalized.message, null, normalized.retryAfter);
+    return errorResponse(529, "overloaded_error", "overloaded", "Model overloaded.", null, normalized.retryAfter);
   }
 
   // 2. Recognized rate limit (code 3036, status 429, or candidate matches) -> 429 rate_limit_error
@@ -900,7 +864,7 @@ export function translateUpstreamError(error, aiBinding) {
     normalized.httpStatus === 429 ||
     normalized.candidateCodes?.has("rate_limit_exceeded")
   ) {
-    return errorResponse(429, "rate_limit_error", "rate_limit_exceeded", normalized.message, null, normalized.retryAfter);
+    return errorResponse(429, "rate_limit_error", "rate_limit_exceeded", "Rate limited upstream.", null, normalized.retryAfter);
   }
 
   // 3. Confirmed caller validation failures from upstream with named field path:
@@ -932,7 +896,7 @@ export function translateUpstreamError(error, aiBinding) {
   }
 
   // 4. Ambiguous failures / everything else -> 502 api_error upstream_error with param: null
-  return errorResponse(502, "api_error", "upstream_error", normalized.message, null);
+  return errorResponse(502, "api_error", "upstream_error", "Upstream model call failed.", null);
 }
 
 /**
@@ -965,7 +929,10 @@ async function evaluate(request, env, pathname) {
     });
   }
 
-  const input = { ...body, model: selectedModel, questions: safeQuestions };
+  const input = { state: body.state, model: selectedModel, questions: safeQuestions };
+  if (own(body, "images") && body.images !== undefined) {
+    input.images = body.images;
+  }
   const upstream = `@cf/cloudflare/${selectedModel}`;
 
   try {
