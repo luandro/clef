@@ -420,9 +420,10 @@ async function main() {
     assert(res.status === 422, `Expected 422, got ${res.status}`);
   });
 
-  // 9. Boundary limits: 64 score levels
-  await runCheck("Limits: Maximum 64 score levels", async () => {
-    const lv64 = Array.from({ length: 64 }, (_, i) => `Level ${i}`);
+  // 9. Boundary limits: 10 score levels
+  await runCheck("Limits: Maximum 10 score levels", async () => {
+    // Upstream Workers AI schema validates max 10 score criteria items
+    const lv10 = Array.from({ length: 10 }, (_, i) => `Level ${i}`);
     const res = await fetch(`${baseUrl}/v1/systemone`, {
       method: "POST",
       headers: {
@@ -431,21 +432,22 @@ async function main() {
       },
       body: JSON.stringify({
         model: "clef",
-        state: "Testing max 64 score levels",
+        state: "Testing max 10 score levels",
         questions: {
           deep_score: {
             type: "score",
             instructions: "Evaluate score",
-            criteria: lv64
+            criteria: lv10
           }
         }
       })
     });
-    assert(res.status === 200, `Expected 200 for 64 score levels, got ${res.status}`);
+    assert(res.status === 200, `Expected 200 for 10 score levels, got ${res.status}`);
   });
 
-  await runCheck("Limits: Explicit clef-flash with 64 score levels", async () => {
-    const lv64 = Array.from({ length: 64 }, (_, i) => `Flash Level ${i}`);
+  await runCheck("Limits: Explicit clef-flash with 10 score levels", async () => {
+    // Upstream Workers AI schema validates max 10 score criteria items
+    const lv10 = Array.from({ length: 10 }, (_, i) => `Flash Level ${i}`);
     const res = await fetch(`${baseUrl}/v1/systemone`, {
       method: "POST",
       headers: {
@@ -454,24 +456,24 @@ async function main() {
       },
       body: JSON.stringify({
         model: "clef-flash",
-        state: "Testing max 64 score levels on clef-flash",
+        state: "Testing max 10 score levels on clef-flash",
         questions: {
           flash_score: {
             type: "score",
             instructions: "Evaluate score flash",
-            criteria: lv64
+            criteria: lv10
           }
         }
       })
     });
-    assert(res.status === 200, `Expected 200 for clef-flash 64 score levels, got ${res.status}`);
+    assert(res.status === 200, `Expected 200 for clef-flash 10 score levels, got ${res.status}`);
     const json = await res.json();
     assert(json.model === "clef-flash", `Expected model: "clef-flash", got ${json.model}`);
-    assert(json.answers?.flash_score, "Missing answer for clef-flash 64 score levels");
+    assert(json.answers?.flash_score, "Missing answer for clef-flash 10 score levels");
   });
 
   // 10. Images smoke test
-  await runCheck("Images extension smoke test (tolerant: 200 or 422 recorded)", async () => {
+  await runCheck("Images extension smoke test (expecting 200)", async () => {
     const tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
     const res = await fetch(`${baseUrl}/v1/systemone`, {
       method: "POST",
@@ -485,20 +487,14 @@ async function main() {
         questions: {
           is_dark: { type: "noul", instructions: "Is the image dark?" }
         },
-        images: [{ mime: "image/png", data: tinyPng }]
+        images: [`data:image/png;base64,${tinyPng}`]
       })
     });
 
-    if (res.status === 200) {
-      const json = await res.json();
-      assert(json.answers?.is_dark, "Missing answer for image test");
-      console.log(" [Images supported (200)]");
-    } else if (res.status === 422) {
-      const json = await res.json();
-      console.log(` [Images returned 422: ${json.error?.code || "unsupported"} - recorded outcome, not failing run]`);
-    } else {
-      throw new Error(`Unexpected status for images smoke test: ${res.status}`);
-    }
+    assert(res.status === 200, `Expected 200 for images smoke test, got ${res.status}`);
+    const json = await res.json();
+    assert(json.answers?.is_dark, "Missing answer for image test");
+    console.log(" [Images supported (200)]");
   });
 
   console.log(`\n=== Live Suite Complete: ${passedCount} passed, ${failedCount} failed ===\n`);

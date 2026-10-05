@@ -86,9 +86,9 @@ The `/v1/models` endpoint returns an envelope superset supporting both OpenAI-st
 | **Questions Count** | 1 to 64 questions per request | 422 `invalid_field` (`questions`) |
 | **Question ID** | `^[A-Za-z0-9_.-]{1,100}$` | 422 `invalid_field` (`questions.<id>`) |
 | **Choice Options** | 1 to 255 options | 422 `invalid_field` (`questions.<id>.criteria`) |
-| **Score Levels** | 2 to 64 ordered levels | 422 `invalid_field` (`questions.<id>.criteria`) |
-| **Images** | Max 4 images, PNG/JPEG/WebP | 422 `invalid_field` (`images`) |
-| **Image Size** | Max 4 MiB decoded/image, 8 MiB total | 422 `invalid_field` (`images`) |
+| **Score Levels** | 2 to 10 ordered levels (upstream clef caps at 10) | 422 `invalid_field` (`questions.<id>.criteria`) |
+| **Images** | Max 4 images, PNG/JPEG/WebP (`[data-URL string \| {content_type, base64}]`) | 422 `invalid_field` (`images` or `images[i]`) |
+| **Image Size** | Max 4 MiB decoded/image, 8 MiB total | 422 `invalid_field` (`images` or `images[i]`) |
 
 ---
 
@@ -101,7 +101,7 @@ Errors are returned with `Content-Type: application/json` and `Cache-Control: no
   "error": {
     "type": "invalid_request_error",
     "code": "invalid_field",
-    "message": "questions.severity.criteria: expected 2–64 levels",
+    "message": "questions.severity.criteria: expected 2-10 levels",
     "param": "questions.severity.criteria"
   }
 }
@@ -174,7 +174,7 @@ curl -s -X POST "$CLEF_URL/v1/systemone" \
 
 ### 3. Score (Graded Severity)
 
-A `score` question evaluates an ordered array of 2–64 level descriptions, returning the expected score, legend, probabilities, and confidence:
+A `score` question evaluates an ordered array of 2–10 level descriptions (upstream clef caps at 10 levels), returning the expected score, legend, probabilities, and confidence:
 
 ```bash
 curl -s -X POST "$CLEF_URL/v1/systemone" \
@@ -195,6 +195,33 @@ curl -s -X POST "$CLEF_URL/v1/systemone" \
         ]
       }
     }
+  }'
+```
+
+### 4. Multimodal (Images Extension)
+
+Requests may include an optional `images` array (max 4 images, PNG/JPEG/WebP) formatted as `[data-URL string | {content_type, base64}]`:
+
+```bash
+curl -s -X POST "$CLEF_URL/v1/systemone" \
+  -H "Authorization: Bearer $CLEF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "clef",
+    "state": "Inspect UI screenshot for layout bugs.",
+    "questions": {
+      "has_overflow": {
+        "type": "noul",
+        "instructions": "Does the UI contain visible text or element overflow?"
+      }
+    },
+    "images": [
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      {
+        "content_type": "image/jpeg",
+        "base64": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA="
+      }
+    ]
   }'
 ```
 

@@ -453,7 +453,7 @@ describe("Validation - Choice criteria", () => {
 });
 
 describe("Validation - Score criteria", () => {
-  it("requires criteria array with 2–64 levels", () => {
+  it("requires criteria array with 2–10 levels", () => {
     // Missing criteria
     const missing = {
       ...VALID_BASE_REQUEST,
@@ -488,23 +488,24 @@ describe("Validation - Score criteria", () => {
     });
     expect(res2.valid).toBe(true);
 
-    // 64 levels
-    const lv64 = Array.from({ length: 64 }, (_, i) => `Level ${i}`);
-    const res64 = validateRequest({
+    // 10 levels
+    const lv10 = Array.from({ length: 10 }, (_, i) => `Level ${i}`);
+    const res10 = validateRequest({
       ...VALID_BASE_REQUEST,
-      questions: { score: { type: "score", instructions: "Rate", criteria: lv64 } }
+      questions: { score: { type: "score", instructions: "Rate", criteria: lv10 } }
     });
-    expect(res64.valid).toBe(true);
+    expect(res10.valid).toBe(true);
 
-    // 65 levels
-    const lv65 = Array.from({ length: 65 }, (_, i) => `Level ${i}`);
-    const res65 = validateRequest({
+    // 11 levels
+    const lv11 = Array.from({ length: 11 }, (_, i) => `Level ${i}`);
+    const res11 = validateRequest({
       ...VALID_BASE_REQUEST,
-      questions: { score: { type: "score", instructions: "Rate", criteria: lv65 } }
+      questions: { score: { type: "score", instructions: "Rate", criteria: lv11 } }
     });
-    expect(res65.valid).toBe(false);
-    expect(res65.error.code).toBe("invalid_field");
-    expect(res65.error.param).toBe("questions.score.criteria");
+    expect(res11.valid).toBe(false);
+    expect(res11.error.code).toBe("invalid_field");
+    expect(res11.error.param).toBe("questions.score.criteria");
+    expect(res11.error.message).toMatch(/2[-–]10 levels/);
   });
 
   it("preserves order, duplicates, and structured/null level descriptions", () => {
@@ -554,11 +555,13 @@ describe("Validation - Images extension", () => {
     // Empty array
     expect(validateRequest({ ...VALID_BASE_REQUEST, images: [] }).valid).toBe(true);
 
-    // 4 valid images
-    const images4 = Array.from({ length: 4 }, () => ({
-      mime: "image/png",
-      data: VALID_BASE64_PNG
-    }));
+    // 4 valid images (mix of data URL strings and object forms)
+    const images4 = [
+      `data:image/png;base64,${VALID_BASE64_PNG}`,
+      { content_type: "image/png", base64: VALID_BASE64_PNG },
+      `data:image/jpeg;base64,${VALID_BASE64_PNG}`,
+      { content_type: "image/webp", base64: VALID_BASE64_PNG }
+    ];
     expect(validateRequest({ ...VALID_BASE_REQUEST, images: images4 }).valid).toBe(true);
   });
 
@@ -568,10 +571,13 @@ describe("Validation - Images extension", () => {
     expect(resNonArr.error.code).toBe("invalid_field");
     expect(resNonArr.error.param).toBe("images");
 
-    const images5 = Array.from({ length: 5 }, () => ({
-      mime: "image/png",
-      data: VALID_BASE64_PNG
-    }));
+    const images5 = [
+      `data:image/png;base64,${VALID_BASE64_PNG}`,
+      `data:image/png;base64,${VALID_BASE64_PNG}`,
+      `data:image/png;base64,${VALID_BASE64_PNG}`,
+      `data:image/png;base64,${VALID_BASE64_PNG}`,
+      `data:image/png;base64,${VALID_BASE64_PNG}`
+    ];
     const res5 = validateRequest({ ...VALID_BASE_REQUEST, images: images5 });
     expect(res5.valid).toBe(false);
     expect(res5.error.code).toBe("invalid_field");
@@ -580,30 +586,48 @@ describe("Validation - Images extension", () => {
 
   it("validates mime types and rejects invalid ones", () => {
     for (const mime of ["image/png", "image/jpeg", "image/webp"]) {
-      const req = {
+      const reqUrl = {
         ...VALID_BASE_REQUEST,
-        images: [{ mime, data: VALID_BASE64_PNG }]
+        images: [`data:${mime};base64,${VALID_BASE64_PNG}`]
       };
-      expect(validateRequest(req).valid).toBe(true);
+      expect(validateRequest(reqUrl).valid).toBe(true);
+
+      const reqObj = {
+        ...VALID_BASE_REQUEST,
+        images: [{ content_type: mime, base64: VALID_BASE64_PNG }]
+      };
+      expect(validateRequest(reqObj).valid).toBe(true);
     }
 
-    const badMimeReq = {
+    const badMimeUrl = {
       ...VALID_BASE_REQUEST,
-      images: [{ mime: "image/gif", data: VALID_BASE64_PNG }]
+      images: [`data:image/gif;base64,${VALID_BASE64_PNG}`]
     };
-    const res = validateRequest(badMimeReq);
-    expect(res.valid).toBe(false);
-    expect(res.error.code).toBe("invalid_field");
-    expect(res.error.param).toBe("images.0.mime");
+    const resUrl = validateRequest(badMimeUrl);
+    expect(resUrl.valid).toBe(false);
+    expect(resUrl.error.code).toBe("invalid_field");
+    expect(resUrl.error.param).toBe("images[0]");
+
+    const badMimeObj = {
+      ...VALID_BASE_REQUEST,
+      images: [{ content_type: "image/gif", base64: VALID_BASE64_PNG }]
+    };
+    const resObj = validateRequest(badMimeObj);
+    expect(resObj.valid).toBe(false);
+    expect(resObj.error.code).toBe("invalid_field");
+    expect(resObj.error.param).toBe("images[0]");
   });
 
   it("rejects missing data, empty data, URLs, and data: prefixes", () => {
     const tests = [
-      { img: { mime: "image/png" }, param: "images.0.data", code: "missing_field" },
-      { img: { mime: "image/png", data: "" }, param: "images.0.data", code: "invalid_field" },
-      { img: { mime: "image/png", data: "https://example.com/pic.png" }, param: "images.0.data", code: "invalid_field" },
-      { img: { mime: "image/png", data: `data:image/png;base64,${VALID_BASE64_PNG}` }, param: "images.0.data", code: "invalid_field" },
-      { img: { mime: "image/png", data: "invalid!base64?characters" }, param: "images.0.data", code: "invalid_field" }
+      { img: { content_type: "image/png" }, param: "images[0]", code: "invalid_field" },
+      { img: { content_type: "image/png", base64: "" }, param: "images[0]", code: "invalid_field" },
+      { img: { base64: VALID_BASE64_PNG }, param: "images[0]", code: "invalid_field" },
+      { img: "https://example.com/pic.png", param: "images[0]", code: "invalid_field" },
+      { img: "data:image/png;notbase64", param: "images[0]", code: "invalid_field" },
+      { img: "data:image/png;base64,invalid!base64?characters", param: "images[0]", code: "invalid_field" },
+      { img: { content_type: "image/png", base64: "invalid!base64?characters" }, param: "images[0]", code: "invalid_field" },
+      { img: 123, param: "images[0]", code: "invalid_field" }
     ];
 
     for (const t of tests) {
@@ -619,14 +643,23 @@ describe("Validation - Images extension", () => {
     // 4 MiB = 4 * 1024 * 1024 = 4,194,304 bytes decoded -> 5,592,408 base64 chars
     // Create base64 string just above 4 MiB decoded
     const over4MiBChars = "A".repeat(5592416); // 5,592,416 / 4 * 3 = 4,194,312 bytes > 4 MiB
-    const reqOver4MiB = {
+    const reqOver4MiBUrl = {
       ...VALID_BASE_REQUEST,
-      images: [{ mime: "image/png", data: over4MiBChars }]
+      images: [`data:image/png;base64,${over4MiBChars}`]
     };
-    const resSingle = validateRequest(reqOver4MiB);
-    expect(resSingle.valid).toBe(false);
-    expect(resSingle.error.code).toBe("invalid_field");
-    expect(resSingle.error.param).toBe("images.0.data");
+    const resSingleUrl = validateRequest(reqOver4MiBUrl);
+    expect(resSingleUrl.valid).toBe(false);
+    expect(resSingleUrl.error.code).toBe("invalid_field");
+    expect(resSingleUrl.error.param).toBe("images[0]");
+
+    const reqOver4MiBObj = {
+      ...VALID_BASE_REQUEST,
+      images: [{ content_type: "image/png", base64: over4MiBChars }]
+    };
+    const resSingleObj = validateRequest(reqOver4MiBObj);
+    expect(resSingleObj.valid).toBe(false);
+    expect(resSingleObj.error.code).toBe("invalid_field");
+    expect(resSingleObj.error.param).toBe("images[0]");
 
     // 3 images of 3 MiB each = 9 MiB total > 8 MiB limit
     // 3 MiB = 3,145,728 bytes decoded = 4,194,304 base64 chars
@@ -634,9 +667,9 @@ describe("Validation - Images extension", () => {
     const reqTotalOver8MiB = {
       ...VALID_BASE_REQUEST,
       images: [
-        { mime: "image/png", data: img3MiB },
-        { mime: "image/png", data: img3MiB },
-        { mime: "image/png", data: img3MiB }
+        `data:image/png;base64,${img3MiB}`,
+        { content_type: "image/png", base64: img3MiB },
+        `data:image/png;base64,${img3MiB}`
       ]
     };
     const resTotal = validateRequest(reqTotalOver8MiB);
@@ -673,7 +706,7 @@ describe("Validation - Deterministic first-failure order and extra fields", () =
       state: "ok",
       model: "clef",
       questions: { urgent: { type: "bad_type", instructions: "test" } },
-      images: [{ mime: "bad/mime", data: "bad" }]
+      images: [{ content_type: "bad/mime", base64: "bad" }]
     };
     const res5 = validateRequest(badQuestionAndBadImage);
     expect(res5.error.param).toBe("questions.urgent.type");

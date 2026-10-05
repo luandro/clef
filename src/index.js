@@ -463,8 +463,8 @@ export function validateBody(body, pathname = "/v1/systemone") {
       if (!Array.isArray(question.criteria)) {
         throw new ValidationError(`${field}.criteria`, "invalid_field", `${field}.criteria: must be an array`);
       }
-      if (question.criteria.length < 2 || question.criteria.length > 64) {
-        throw new ValidationError(`${field}.criteria`, "invalid_field", `${field}.criteria: expected 2–64 levels`);
+      if (question.criteria.length < 2 || question.criteria.length > 10) {
+        throw new ValidationError(`${field}.criteria`, "invalid_field", `${field}.criteria: expected 2-10 levels`);
       }
       for (let i = 0; i < question.criteria.length; i++) {
         if (!entry(question.criteria[i])) {
@@ -487,42 +487,63 @@ export function validateBody(body, pathname = "/v1/systemone") {
 
     for (let i = 0; i < body.images.length; i++) {
       const img = body.images[i];
-      const imgField = `images.${i}`;
+      const imgField = `images[${i}]`;
 
-      if (!record(img)) {
-        throw new ValidationError(imgField, "invalid_field", `${imgField}: must be an object`);
-      }
+      if (typeof img === "string") {
+        if (!img.startsWith("data:")) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: must be a data URL starting with 'data:'`);
+        }
+        const marker = ";base64,";
+        const markerIndex = img.indexOf(marker);
+        if (markerIndex === -1) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: data URL missing ';base64,' payload`);
+        }
+        const mime = img.slice(5, markerIndex);
+        if (!ALLOWED_MIMES.has(mime)) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: expected image/png, image/jpeg, or image/webp`);
+        }
+        const b64 = img.slice(markerIndex + marker.length);
+        if (!b64 || !isValidBase64(b64)) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: invalid base64 encoding`);
+        }
 
-      if (!own(img, "mime")) {
-        throw new ValidationError(`${imgField}.mime`, "missing_field", `${imgField}.mime: required field missing`);
-      }
-      if (!ALLOWED_MIMES.has(img.mime)) {
-        throw new ValidationError(`${imgField}.mime`, "invalid_field", `${imgField}.mime: expected image/png, image/jpeg, or image/webp`);
-      }
+        let padding = 0;
+        if (b64.endsWith("==")) padding = 2;
+        else if (b64.endsWith("=")) padding = 1;
+        const decodedBytes = Math.floor((b64.length / 4) * 3) - padding;
 
-      if (!own(img, "data")) {
-        throw new ValidationError(`${imgField}.data`, "missing_field", `${imgField}.data: required field missing`);
-      }
-      if (typeof img.data !== "string" || img.data.length === 0) {
-        throw new ValidationError(`${imgField}.data`, "invalid_field", `${imgField}.data: must be a non-empty string`);
-      }
+        if (decodedBytes > MAX_IMAGE_BYTES) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: image exceeds 4 MiB decoded size`);
+        }
 
-      if (!isValidBase64(img.data)) {
-        throw new ValidationError(`${imgField}.data`, "invalid_field", `${imgField}.data: invalid base64 encoding`);
-      }
+        totalImageBytes += decodedBytes;
+        if (totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
+          throw new ValidationError("images", "invalid_field", "images: total image size exceeds 8 MiB decoded");
+        }
+      } else if (record(img)) {
+        if (!own(img, "content_type") || typeof img.content_type !== "string" || !ALLOWED_MIMES.has(img.content_type)) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: content_type must be image/png, image/jpeg, or image/webp`);
+        }
 
-      let padding = 0;
-      if (img.data.endsWith("==")) padding = 2;
-      else if (img.data.endsWith("=")) padding = 1;
-      const decodedBytes = Math.floor((img.data.length / 4) * 3) - padding;
+        if (!own(img, "base64") || typeof img.base64 !== "string" || img.base64.length === 0 || !isValidBase64(img.base64)) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: base64 must be a non-empty valid base64 string`);
+        }
 
-      if (decodedBytes > MAX_IMAGE_BYTES) {
-        throw new ValidationError(`${imgField}.data`, "invalid_field", `${imgField}.data: image exceeds 4 MiB decoded size`);
-      }
+        let padding = 0;
+        if (img.base64.endsWith("==")) padding = 2;
+        else if (img.base64.endsWith("=")) padding = 1;
+        const decodedBytes = Math.floor((img.base64.length / 4) * 3) - padding;
 
-      totalImageBytes += decodedBytes;
-      if (totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
-        throw new ValidationError("images", "invalid_field", "images: total image size exceeds 8 MiB decoded");
+        if (decodedBytes > MAX_IMAGE_BYTES) {
+          throw new ValidationError(imgField, "invalid_field", `${imgField}: image exceeds 4 MiB decoded size`);
+        }
+
+        totalImageBytes += decodedBytes;
+        if (totalImageBytes > MAX_TOTAL_IMAGE_BYTES) {
+          throw new ValidationError("images", "invalid_field", "images: total image size exceeds 8 MiB decoded");
+        }
+      } else {
+        throw new ValidationError(imgField, "invalid_field", `${imgField}: must be a data URL string or image object`);
       }
     }
   }
