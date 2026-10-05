@@ -136,6 +136,12 @@ calls while working):
 5. Smoke-test one real request before declaring the migration procedure
    complete.
 
+Gateway-style installs (Hermes and the jev-* skills) often support a
+compatible-endpoint override instead of edited URLs: set
+`TYPESAFE_BASE_URL` to the proxy base URL and `JEV_PROXY_API_KEY` to a
+gateway-only bearer, in the lane's own env file. That pair routes all
+System One calls to the proxy with zero skill edits.
+
 ## Installing this skill (~/.agents and ~/.claude)
 
 Canonical store: `~/.agents/skills/`. `~/.claude/skills` is a symlink to
