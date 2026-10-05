@@ -1,0 +1,9 @@
+{
+  "model": "clef",
+  "state": "Hi, I've been trying to connect my Stripe account for 3 days and the integration keeps failing. I'm losing sales. Please help ASAP.",
+  "questions": {
+    "urgent": {"type": "noul", "instructions": "Is this support request urgent?"},
+    "team": {"type": "choice", "instructions": "Which team should handle this request?", "criteria": {"billing": "Payments, invoices, refunds", "technical": "Outages, errors, and configuration", "sales": "Plans and upgrades"}},
+    "severity": {"type": "score", "instructions": "How severe is the customer impact?", "criteria": ["No impact", "Minor", "Major", "Critical"]}
+  }
+}
