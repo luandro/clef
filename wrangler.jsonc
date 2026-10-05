@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "clef-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-04",
+  "ai": {
+    "binding": "AI"
+  },
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  }
+}

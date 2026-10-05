@@ -1,0 +1,10 @@
+.env*
+!.env.example
+node_modules/
+.wrangler/
+dist/
+*.log
+
+graft/
+.clef-secrets.env
+.dev.vars

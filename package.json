@@ -1,0 +1,17 @@
+{
+  "name": "clef-proxy",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "wrangler dev",
+    "deploy:check": "cf deploy --dry-run",
+    "deploy:canary": "cf deploy --mode canary",
+    "deploy": "cf deploy"
+  },
+  "devDependencies": {
+    "cf": "^1.0.0-beta.12",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.147.0"
+  }
+}
