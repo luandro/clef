@@ -229,8 +229,6 @@ curl -s -X POST "$CLEF_URL/v1/systemone" \
 
 ## Deployment
 
-<!-- TODO-DEPLOY -->
-
 Deployed 2026-10-04 as a single Worker, `clef-proxy`, at
 `https://clef-proxy.mangadl.workers.dev` (both models, selected by the
 request's `model` field; no separate canary/production modes).
